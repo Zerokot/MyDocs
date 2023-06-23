@@ -1,0 +1,45 @@
+командная строка для запуска среды idf.py:
+C:\WINDOWS\system32\cmd.exe /k ""F:\.espressif\idf_cmd_init.bat" "C:\Dev\Python38\" "C:\Dev\Git\cmd\""
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+вся флешь:
+esptool.py erase_flash
+
+для LyraT
+esptool.py -p COM12 erase_flash
+
+для LyraTD-DSPG
+esptool.py -p COM5 erase_flash
+
+кусок памяти:
+esptool.py erase_region 0x20000 0x4000
+
+esptool.py flash_id
+
+esptool.py --port COM12 write_flash 0x0 C:/esp/factory_lyratd_msc.bin
+
+
+
+esptool.py -p COM3 -b 460800 read_flash 0 0x400000 factory_lyrat.bin (4Mb)
+
+сохранение:
+esptool.py -p COM3 -b 460800 read_flash 0 0x800000 C:/esp/factory_lyrat.bin (8Mb)
+восстановление:
+esptool.py -p COM3 write_flash 0x0 C:/esp/factory_lyrat.bin
+
+
+esptool.py -p COM3 write_flash 0x0 C:/esp/blank4.bin
+
+esptool.py -p COM9 write_flash 0x0 C:/esp/blank4.bin
+
+esptool.py -p COM9 write_flash 0x0 C:/esp/factory_lyratd_msc.bin
+
+0x1000000 (16Mb)
+0x800000 (8Mb)
+0x400000 (4Mb)
+0x200000 (2Mb)
+0x100000 (1Mb)
+
+сохранение:
+esptool.py -p COM4 -b 460800 read_flash 0 0x800000 D:/Yoradio/factory_wt32-sc1-plus.bin (8Mb)
+вернуть прошивку взад:
+esptool.py -p COM4 write_flash 0x0 D:/Yoradio/factory_wt32-sc1-plus.bin

@@ -1,0 +1,10 @@
+как сделать бэкап на ESP32-cam?
+
+считывание прошивки
+
+esptool.exe -c esp32 -p COM13 -b 115200 read_flash 0 0x400000 esp32_firmware.bin
+
+
+восстановление прошивки
+
+esptool.exe -c esp32 -p COM13 -b 115200 write_flash 0 esp32_firmware.bin
