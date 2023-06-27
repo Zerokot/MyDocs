@@ -1,0 +1,243 @@
+=============================================================================================
+! 	Использование SPIRAM на ESP32 (WROOVER) и ESP32s3 (F16R8)			    !
+=============================================================================================
+Этот документ появился на свет по причине того, что ESP32, обладающая SPIRAM микросхемой не заработала.
+Первая мысль - китайцы обманули (сэкономили на RAM :-)). Вторая - сгорела. Но нет.
+Надо было просто правильно настроить конфигурацию проекта! 
+Чтобы увидеть заветную PSRAM в своем проекте, надо... 
+============================================================================================
+	Терминология:
+--------------------------------------------------------------------------------------------
+SPI - Serial Peripheral Interface
+MSPI - Memory SPI Peripheral, SPI Peripheral dedicated for memory
+SDR - Single Data Rate
+DDR - Double Data Rate
+line mode - Количество сигналов, используемых для передачи данных в фазе данных транзакций SPI. 
+		т.е., для 4-bit-mode, скорость одной порции данных будет 4 бита за такт.
+FxRx - F обозначает Flash, R обозначает PSRAM, x обозначает line mode.
+		т.е. F4R4 обозначает для ESP32-S3 Quad Flash и Quad PSRAM
+
+В ESP32-S3 MSPI означает SPI0/1. SPI0 и SPI1 используют общую шину SPI. 
+Основная флэш-память и PSRAM подключены к периферийному устройству MSPI. 
+CPU обращается к ним через Cache.
+==========================================================================================
+	
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+	Как настроить Flash и PSRAM?
+	Надо открыть меню конфигурации (idf.py menuconfig)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+===========================================================================
+Конфигурации, связанные с Flash, находятся в меню: Serial flasher config
+===========================================================================
+1) Тип флешки, используемый на плате. 
+Для Octal Flash выберите CONFIG_ESPTOOLPY_OCT_FLASH . 
+Для Quad Flash снимите флажок с этой конфигурации.
+
+2) Режим line mode. Выберите line mode в CONFIG_ESPTOOLPY_FLASHMODE . 
+Чем выше line mode, тем выше скорость SPI. (См. терминологию выше о линейном режиме).
+
+3) CONFIG_ESPTOOLPY_FLASH_SAMPLE_MODE Режим работы памяти флешки. Режим DDR быстрее, чем режим SDR. 
+См. выше терминологию о режимах SDR и DDR.
+
+4) CONFIG_ESPTOOLPY_FLASHFREQ - Скорость флешки. Выберите частоту флэш-памяти.
+
+5) CONFIG_ESPTOOLPY_FLASHSIZE - Размер флешки. Размер флэш-памяти в мегабайтах. Выберите размер флэш-памяти.
+========================================================================================
+========================================================================================
+Пришло время настроить PSRAM
+=========================================================================================
+1) Включить PSRAM, для чего включить CONFIG_SPIRAM в меню. 
+(Тогда все конфигурации, связанные с PSRAM, будут видны в меню.
+Component config / Hardware SettingsSPI RAM config)
+
+2) CONFIG_SPIRAM_MODE - Выбрать тип PSRAM, используемый на плате. Выберите тип Quad или Octal PSRAM.
+
+3) CONFIG_SPIRAM_SPEED - Скорость PSRAM. Выберите частоту PSRAM.
+___________________________________________________________________________________________
+Примечание: Конфигурация флэш-памяти и PSRAM должна быть выбрана в соответствии 
+с вашим аппаратным обеспечением.
+___________________________________________________________________________________________
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Поскольку Flash и PSRAM, по-сути, взаимосвязаны одной линией и используют одни и те же внутренние тактовые сигналы,
+следует учитывать некоторые ограничения при настройке конфигурации.
+
+1) Quad Flash поддерживает только режим STR. 
+   Octal Flash может поддерживать один или оба режима STR/DTR в режиме OPI, в зависимости от модели флэш-памяти и поставщика.
+
+2) Quad PSRAM поддерживает только режим STR, 
+ а Octal PSRAM поддерживает только режим DTR.
+==========================================================================
+Все поддерживаемые режимы и скорости
+Здесь как и в компьютерной памяти SDR и DDR. 
+В режиме DDR (MSPI) выборка данных осуществляется как по положительному, так и по отрицательному фронту. 
+например: если флэш-память настроена на 80 МГц и включен режим DDR, 
+то итоговая скорость флэш-памяти составит 160 МГц. 
+Это быстрее, чем настройка Flash на 120 МГц и режим STR.
+(!!!Режим 120 МГц DDR является экспериментальной функцией.)
+_______________________________________________________________________
+высокая скорость приводит к рискам:
+Если ваш чип включается при определенной температуре, то после повышения или понижения температуры
+более чем на 20 градусов Цельсия (понятно, что от чипа к чипу этот диапазон температур меняется)
+доступ к/из PSRAM/Flash будет происходить случайным образом, а это приведет 
+к сбою доступа к флэш-памяти и сбою программы.
+______________________________________________________________________
+
+Итак, СОВМЕСТИМЫЕ режимы для передачи данных (line mode) от самых быстрых до относительно медленных.
+____________________________________
+F8R8		!
+Флешка 		!	PSRAM
+____________________________________
+120 МГц DDR	!	120 МГц DDR
+80 МГц DDR	!	80 МГц DDR
+80 МГц SDR	!	40 МГц DDR
+____________________________________
+
+____________________________________
+F4R8		!
+Флешка 		!	PSRAM
+____________________________________
+120 МГц SDR	!	120 МГц DDR
+80 МГц SDR	!	80 МГц DDR
+40 МГц SDR	!	40 МГц DDR
+____________________________________
+
+F4R4		!
+Флешка 		!	PSRAM
+____________________________________
+120 МГц 	!	120 МГц
+80 МГц 		!	80 МГц 
+40 МГц 		!	40 МГц 
+____________________________________
+
+
+ОШИБКИ:
+
+1) Если плата с Octal Flash сбрасывается до загрузчика второго этапа:
+
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x7 (TG0WDT_SYS_RST),boot:0x18 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x400454d5
+SPIWP:0xee
+mode:DOUT, clock div:1
+load:0x3fcd0108,len:0x171c
+ets_loader.c 78
+это может означать, что неправильно сожжены биты eFuse чипа.
+Пожалуйста, проверьте биты eFuse чипа с помощью команды .espefuse.py summary
+
+Загрузчик ПЗУ использует бит eFuse FLASH_TYPE для сброса флэш-памяти в режим по умолчанию (режим SPI). 
+Если этот бит не сгорел и флэш-память работает в режиме OPI, 
+возможно, загрузчик ПЗУ не сможет прочитать флэш-память и загрузить следующие образы.
+
+2) Если вы включили CONFIG_ESPTOOLPY_OCT_FLASH и в журнале ошибок есть сообщение:
+
+Octal Flash option selected, but EFUSE not configured!
+это означает: либо вы используете плату с Quad Flash
+или вы используете плату с Octal Flash, но бит eFuse FLASH_TYPEне уже сгорел. 
+Espressif гарантирует этот бит при производстве модуля, 
+но если модуль производится другими производителями, это может произойти.
+
+Вот способ сжечь бит eFuse своими руками:
+python3 ./espefuse.py -p /dev/<serial_device> --do-not-confirm burn_efuse FLASH_TYPE 1
+Примечание
+Этот шаг необратим. Пожалуйста, проверьте, действительно ли ваше оборудование использует Octal Flash.
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Мои рабочие настройки для ESP32s3:
+-------------------------------------
+Флеш
+--------------------------------
+Flash SPI - mode DIO
+Flash Sampling mode - STR Mode
+Flash SPI speed - 80 MHz
+Flash size - 16 Mb
+Detect flash size when flashing bootloader - [V]
+Before flashing - Reset to bootloader
+After flashing - Reset after flashing
+idf.py monitor baud rate - 115200 bps
+______________________________________
+PSRAM
+________________________________________
+
+Support for external, SPI-connected RAM - [v] (CONFIG_ESP32S3_SPIRAM_SUPPORT=y)
+Mode (QUAD/OCTAL) of SPI RAM chip in use (Octal Mode PSRAM)
+Type of SPIRAM chip in use - ESP-PSRAM64, LY68L6400 or APS6408 
+			     (или Auto-detect)
+Cashe fetch instructions from SPI RAM  []
+Cashe load read only data from SPI RAM []
+Allow external memory as an argument to xTaskCreateStatic [v]
+Set Ram clock speed - 80MHz
+Initialize SPI RAM during startup  [v]
+Ignore PSRAM when not found [v]
+SPI RAM access method - Make RAM allocateble using malloc() as well
+Run memory test on SPI RAM initialization [v]
+Maximum malloc() size, in bytes, to always put in internal memory - 16384
+Try to allocate memories of WiFi and LWIP in SPIRAM firstly. If failed, allocate internal memory [v] 
+Reserve this amount of bytes for data that specifically needs to be in DMA or internal memory - 32768
+
+
+Дамп успешной проверки SPI RAM:
+
+I (24) boot: ESP-IDF v4.4.4 2nd stage bootloader
+I (25) boot: compile time 18:24:51
+I (25) boot: chip revision: v0.1
+I (26) boot_comm: chip revision: 1, min. bootloader chip revision: 0
+I (34) boot.esp32s3: Boot SPI Speed : 80MHz
+I (38) boot.esp32s3: SPI Mode       : DIO
+I (43) boot.esp32s3: SPI Flash Size : 16MB
+I (48) boot: Enabling RNG early entropy source...
+I (53) boot: Partition Table:
+I (57) boot: ## Label            Usage          Type ST Offset   Length
+I (64) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (72) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (79) boot:  2 factory          factory app      00 00 00010000 00100000
+I (87) boot: End of partition table
+I (91) boot_comm: chip revision: 1, min. application chip revision: 0
+I (98) esp_image: segment 0: paddr=00010020 vaddr=3c050020 size=1ad4ch (109900) map
+I (126) esp_image: segment 1: paddr=0002ad74 vaddr=3fc91d20 size=024a4h (  9380) load
+I (128) esp_image: segment 2: paddr=0002d220 vaddr=40374000 size=02df8h ( 11768) load
+I (134) esp_image: segment 3: paddr=00030020 vaddr=42000020 size=4f8d4h (325844) map
+I (199) esp_image: segment 4: paddr=0007f8fc vaddr=40376df8 size=0af24h ( 44836) load
+I (214) boot: Loaded app from partition at offset 0x10000
+I (214) boot: Disabling RNG early entropy source...
+I (226) opi psram: vendor id : 0x0d (AP)
+I (226) opi psram: dev id    : 0x02 (generation 3)
+I (226) opi psram: density   : 0x03 (64 Mbit)
+I (230) opi psram: good-die  : 0x01 (Pass)
+I (235) opi psram: Latency   : 0x01 (Fixed)
+I (239) opi psram: VCC       : 0x01 (3V)
+I (244) opi psram: SRF       : 0x01 (Fast Refresh)
+I (249) opi psram: BurstType : 0x01 (Hybrid Wrap)
+I (255) opi psram: BurstLen  : 0x01 (32 Byte)
+I (260) opi psram: Readlatency  : 0x02 (10 cycles@Fixed)
+I (266) opi psram: DriveStrength: 0x00 (1/1)
+W (271) PSRAM: DO NOT USE FOR MASS PRODUCTION! Timing parameters will be updated in future IDF version.
+I (282) spiram: Found 64MBit SPI RAM device
+I (286) spiram: SPI RAM mode: sram 80m
+I (290) spiram: PSRAM initialized, cache is in normal (1-core) mode.
+I (297) cpu_start: Pro cpu up.
+I (301) cpu_start: Single core mode
+I (718) spiram: SPI SRAM memory test OK
+I (727) cpu_start: Pro cpu start user code
+I (727) cpu_start: cpu freq: 160000000
+
+
+
+
+ 
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
